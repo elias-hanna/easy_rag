@@ -1,0 +1,6 @@
+langchain
+PyPDF2
+sentence-transformers
+faiss-gpu
+transformers
+torch
