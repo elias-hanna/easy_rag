@@ -4,3 +4,5 @@ sentence-transformers
 faiss-gpu
 transformers
 torch
+optimum
+auto-gptq
