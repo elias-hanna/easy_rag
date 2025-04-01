@@ -14,9 +14,27 @@ use_gpu = False
 if torch.cuda.is_available():
     use_gpu = True
 
+## Load and segment page per page
+# def load_pdfs(directory="documents"):
+#     # Store documents and keep metadata
+#     # (text, page number, source file)
+#     documents = []
+#     for filename in os.listdir(directory):
+#         if filename.endswith(".pdf"):
+#             file_path = os.path.join(directory, filename)
+#             pdf = PdfReader(file_path)
+#             for page_num, page in enumerate(pdf.pages, start=1):
+#                 text = page.extract_text()
+#                 if text:  # Only add if text is extracted
+#                     documents.append({
+#                         "text": text,
+#                         "page": page_num,
+#                         "source": filename
+#                     })
+#     return documents
+
+# Load and segment sentence per sentence
 def load_pdfs(directory="documents"):
-    # Store documents and keep metadata
-    # (text, page number, source file)
     documents = []
     for filename in os.listdir(directory):
         if filename.endswith(".pdf"):
@@ -24,26 +42,40 @@ def load_pdfs(directory="documents"):
             pdf = PdfReader(file_path)
             for page_num, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text()
-                if text:  # Only add if text is extracted
-                    documents.append({
-                        "text": text,
-                        "page": page_num,
-                        "source": filename
-                    })
+                if text:
+                    sentences = text.split('. ')
+                    for i, sentence in enumerate(sentences):
+                        sentence = sentence.strip()
+                        if sentence:  # Skip empty strings
+                            documents.append({
+                                "text": sentence + '.',
+                                "page": page_num,
+                                "source": filename,
+                                "chunk_id": f"{page_num}_{i}"
+                            })
     return documents
 
 # Create embeddings and vector store
 def create_vector_store(documents):
     # Load a pre-trained embedding model
-    model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+    # model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+    model = SentenceTransformer('dangvantuan/sentence-camembert-large')
     if use_gpu:
         model = model.to('cuda')
         print("Embedding model moved to gpu")
         
     # Extract text from documents for embedding
     texts = [doc["text"] for doc in documents]
-    embeddings = model.encode(texts, show_progress_bar=True,
-                              device='cuda' if use_gpu else 'cpu')
+    import pdb; pdb.set_trace()
+    ## debug
+    for text in texts:
+        try:
+            embeddings = model.encode([text], show_progress_bar=True,
+                                      device='cuda' if use_gpu else 'cpu')
+        except:
+            import pdb; pdb.set_trace()
+    # embeddings = model.encode(texts, show_progress_bar=True,
+                              # device='cuda' if use_gpu else 'cpu')
     
     # Create a FAISS index
     dimension = embeddings.shape[1]  # Embedding size
@@ -74,6 +106,8 @@ def query_vector_store(query, index, documents, model, k=3):
             "source": doc["source"],
             "similarity": float(1 - distance)  # Convert distance to similarity (optional)
         })
+
+    import pdb; pdb.set_trace()
     return results
 
 # Load local LLM 
@@ -81,8 +115,8 @@ def load_llm():
     # model_name = "mistralai/Mistral-7B-Instruct-v0.3"  # 7B parameters, good for French, too big for my gpu
     # model_name = "google/gemma-2-2b-it" # 2B parameters, ift, good for French
     # model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # 2B parameters, ift, good for French
-    model_name = "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ" # 4bit quantized version of mistral7b
-    
+    # model_name = "TheBloke/Mistral-7B-Instruct-v0.1-GPTQ" # 4bit quantized version of mistral7b
+    model_name = "TheBloke/CapybaraHermes-2.5-Mistral-7B-GPTQ"
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=True)
     model = AutoModelForCausalLM.from_pretrained(model_name, use_auth_token=True)
     if use_gpu:
