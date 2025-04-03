@@ -1,4 +1,5 @@
 import os
+import re
 import gc
 from PyPDF2 import PdfReader
 from sentence_transformers import SentenceTransformer
@@ -43,7 +44,10 @@ def load_pdfs(directory="documents"):
             for page_num, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text()
                 if text:
-                    sentences = text.split('. ')
+                    # replace non breaking space by space
+                    text = text.replace(u'\xa0', u' ')
+                    # divide sentences using \n and . as delimiter
+                    sentences = re.split(r'(?:\n|\.\s+|\.$)', text)
                     for i, sentence in enumerate(sentences):
                         sentence = sentence.strip()
                         if sentence:  # Skip empty strings
@@ -66,16 +70,15 @@ def create_vector_store(documents):
         
     # Extract text from documents for embedding
     texts = [doc["text"] for doc in documents]
-    import pdb; pdb.set_trace()
-    ## debug
-    for text in texts:
-        try:
-            embeddings = model.encode([text], show_progress_bar=True,
-                                      device='cuda' if use_gpu else 'cpu')
-        except:
-            import pdb; pdb.set_trace()
-    # embeddings = model.encode(texts, show_progress_bar=True,
-                              # device='cuda' if use_gpu else 'cpu')
+    # ## debug
+    # for text in texts:
+    #     try:
+    #         embeddings = model.encode([text], show_progress_bar=True,
+    #                                   device='cuda' if use_gpu else 'cpu')
+    #     except:
+    #         import pdb; pdb.set_trace()
+    embeddings = model.encode(texts, show_progress_bar=True,
+                              device='cuda' if use_gpu else 'cpu')
     
     # Create a FAISS index
     dimension = embeddings.shape[1]  # Embedding size
